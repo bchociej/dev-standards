@@ -6,7 +6,7 @@ Kubernetes. Keep the implementation small; record deliberate exceptions in the
 application's deployment notes.
 
 This standard builds on **BAS-001 version 1**:
-[Repository and development fundamentals](fundamentals.md) at the same standards
+[Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md) at the same standards
 revision. Its hosting, public-source privacy, language/tooling, CI, and standards
 reference rules take precedence. The requirements below are container-specific.
 

@@ -78,7 +78,7 @@ Follow a specialized standard's explicit foundation reference rather than copyin
 its inherited requirements into every project.
 
 With sibling local checkouts, the README link to this document is
-`../standards/fundamentals.md`. Use `../standards/container-applications.md` for
+`../standards/bas-001-repository-and-development-fundamentals.md`. Use `../standards/cas-001-container-application-repositories.md` for
 CAS-001. Replace or supplement local links with canonical repository URLs once
 hosting is configured. Do not guess or imply a published location that does not
 exist yet. Record a newer standards commit when adopting changes; a reference is
