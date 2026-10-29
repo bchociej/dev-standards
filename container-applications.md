@@ -1,0 +1,143 @@
+# CAS-001: Container application repositories
+
+Version 1 — October 29, 2026. This is the default convention for applications
+shipped as one or more container images and deployed with Docker Compose or
+Kubernetes. Keep the implementation small; record deliberate exceptions in the
+application's deployment notes.
+
+## Repository layout
+
+For a single component:
+
+```text
+app/                         Application source (or the language's usual src/)
+tests/                       Automated tests
+container/                   Dockerfile, entrypoint, image process configuration
+deploy/compose/compose.yaml   Compose deployment
+deploy/kubernetes/           Kubernetes manifests and kustomization.yaml, when used
+examples/                    Synthetic configuration and example templates
+docs/deployment.md           Application-specific operating instructions
+.github/workflows/           CI checks
+README.md                    Purpose, quick start, standard reference
+```
+
+Keep language dependency manifests, lockfiles, and `.dockerignore` at the repo
+root. Build from that root, for example:
+`docker build -f container/Dockerfile .`. Keep the build context restricted and
+exclude credentials, local inventories, generated output, and development state.
+Adjust Dockerfile COPY paths when moving image files.
+
+When there are independently built components, use
+`services/<component>/{src,tests,Dockerfile}` (or the component's native language
+layout), with component-specific dependencies and lockfiles unless a shared
+workspace is intentional. Keep orchestration under the common `deploy/` tree.
+Do not split a small application merely to satisfy this layout.
+
+## Image and deployment contract
+
+Build an environment-neutral image. Supply hostnames, inventories, configuration,
+and credentials at deployment time. Promote the same image between environments
+and deployment targets. Production deployment records should identify the image
+by digest, or an immutable release tag with its resolved digest recorded.
+
+Keep actual site configuration and secrets out of public source. Use private
+configuration storage, a private deployment repo, or a secret manager. ConfigMaps
+are for non-sensitive data; Kubernetes Secrets still require appropriate RBAC,
+storage encryption, and backup handling. Base64 is not encryption. Examples must
+contain synthetic identities only.
+
+Mount configuration inputs read-only. Run the final long-lived process in the
+foreground, with the entrypoint using `exec`, so shutdown signals reach it. Log
+operational events without credentials or rendered secret-bearing documents.
+Document writable paths, dependencies, listener ports, and who terminates TLS.
+
+## Simple single-replica applications
+
+For applications that generate files from configuration, prefer this lifecycle:
+
+1. The operator selects a coherent source revision and image version.
+2. Startup validates all required inputs and renders generated files locally.
+3. The server starts only after rendering succeeds. Startup failure is nonzero;
+   readiness must not report success before successful initialization.
+4. Source changes take effect through an explicit recreate/restart, not an
+   implicit filesystem watcher or an undocumented live edit.
+
+Use ephemeral local output when it can be reproduced entirely from inputs:
+Compose tmpfs/container-local storage or Kubernetes emptyDir. Treat generated
+files as secret-bearing if their inputs contain secrets. The authoritative data
+is the source snapshot, not the running container or its generated files.
+Persist genuinely durable application data separately and document backups and
+recovery; do not classify databases or irreplaceable state as disposable output.
+
+Use one replica and no autoscaling by default for this pattern. On Kubernetes,
+use a Deployment with `replicas: 1` and strategy `Recreate` when overlapping
+instances are undesirable. Do not use a rolling surge that briefly creates a
+second writer. Avoid manually deleting pods during an update. These settings
+control normal managed rollouts; they are not distributed fencing against every
+failure or external scaling action. Compose should likewise have one service
+instance. Accept and document the brief outage while it restarts.
+
+Replicas and shared output require a separate design: define ownership, storage,
+publication, and concurrency before scaling. A PVC is not automatically needed
+for disposable generated configuration.
+
+## Updating and recovering
+
+Each application's `docs/deployment.md` should provide copyable commands for:
+
+- Building or selecting an image and validating configuration before stopping
+  the current instance. Validation must use the intended image and inputs, with
+  temporary output and no writes to the active server's generated files.
+- Updating configuration and secrets as one coherent release. Prefer immutable,
+  versioned configuration objects or a private Kustomize overlay with generated
+  names; retain the previous source revision and its image reference for rollback.
+- Applying the deployment and explicitly recreating/restarting it. For Compose,
+  use `up -d --force-recreate` (and `--wait` where supported). For Kubernetes,
+  apply a changed pod template, or apply updated sources and use
+  `rollout restart deployment/<name>`, then `rollout status`.
+- Verifying readiness and a representative application operation without printing
+  secrets, and checking that the requested source/image revision is active.
+- Rolling back to the previous image **and source snapshot**, then recreating and
+  verifying again. A Deployment rollback does not undo mutations to a shared
+  Secret or ConfigMap. A Compose restart does not undo source edits.
+
+Compose paths are relative to the Compose project's base directory, normally the
+first Compose file's directory. If it lives under `deploy/compose/`, make build
+contexts and mounts explicitly relative to that location. Give the project a
+stable name so moving the file does not accidentally select a different stack.
+Document an explicit `docker compose -f deploy/compose/compose.yaml ...` invocation.
+
+Kubernetes source-volume updates can propagate while a pod is running, but an
+application that renders only at startup still requires a restart. Do not assume
+that applying a Secret/ConfigMap triggers one. Avoid concurrent operators and
+keep each startup's input snapshot coherent. Plain manifests with Kustomize are
+a good default; use Helm when configurable distribution warrants it. Keep ingress,
+TLS certificates, namespaces, registry credentials, and site-specific policies in
+private overlays where appropriate.
+
+Configuration-dependent maintenance, such as downloading certificate inventories,
+should be explicit and separate from normal serving startup. Retain provenance,
+validate the downloaded material, and promote a reviewed snapshot. Serving should
+not require Internet access merely to restart from existing inputs.
+
+## Development and CI
+
+Use the language's established tooling and commit its reproducibility lockfile.
+For Python, prefer uv, `pyproject.toml`, and `uv.lock`; separate development tools
+from runtime dependencies and use locked synchronization in CI. Development tools
+must not enter runtime images unless required there.
+
+Run tests and language-appropriate lint/format checks in CI. Shell scripts use
+ShellCheck. Grant workflows minimal permissions. Image build/publish steps are
+an explicit project decision; adopting this standard does not add them or grant
+permission to publish. Likewise, local changes and commits do not authorize a
+push or deployment.
+
+## Referencing this standard
+
+Application README files should name **CAS-001 version 1**, record the standards
+commit they follow, and link to this file. With sibling local checkouts, the link
+from a repo-root README is `../standards/container-applications.md`. Replace or
+supplement it with the standards repository's canonical URL once one exists.
+Do not copy this document into every application. Keep only the application's
+specific commands, settings, tradeoffs, and exceptions in its own deployment notes.
