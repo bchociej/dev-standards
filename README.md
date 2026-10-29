@@ -1,11 +1,13 @@
-# Application standards
+# Project standards
 
-Small, reusable conventions for building and operating application repositories.
+Read the foundation first, then add specialized standards where applicable.
 
+- [BAS-001 version 1: Repository and development fundamentals](fundamentals.md)
+  — public GitHub repositories under `bchociej`, GitHub Actions, privacy boundaries,
+  language/tooling preferences, development checks, and how to reference standards.
 - [CAS-001 version 1: Container application repositories](container-applications.md)
-  — Linux/amd64 defaults, layout, deployment inputs, single-replica operation,
-  optional startup rendering, implementation choices, existing-image reuse,
-  updates, verification, rollback, and development checks.
+  — builds on BAS-001; Linux/amd64 defaults, layout, deployment inputs,
+  single-replica operation, optional startup rendering, image reuse, and recovery.
 
-Applications reference the standard and its Git revision; their own deployment
-notes supply concrete commands and project-specific exceptions.
+Projects reference applicable standards and their Git revision rather than copying
+them. Their own documentation supplies concrete commands and justified exceptions.

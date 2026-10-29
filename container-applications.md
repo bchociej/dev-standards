@@ -5,6 +5,11 @@ shipped as one or more container images and deployed with Docker Compose or
 Kubernetes. Keep the implementation small; record deliberate exceptions in the
 application's deployment notes.
 
+This standard builds on **BAS-001 version 1**:
+[Repository and development fundamentals](fundamentals.md) at the same standards
+revision. Its hosting, public-source privacy, language/tooling, CI, and standards
+reference rules take precedence. The requirements below are container-specific.
+
 ## Platform default
 
 Target **Linux on amd64 (x86-64)** by default: container images, Docker hosts,
@@ -49,8 +54,9 @@ and credentials at deployment time. Promote the same image between environments
 and deployment targets. Production deployment records should identify the image
 by digest, or an immutable release tag with its resolved digest recorded.
 
-Keep actual site configuration and secrets out of public source. Use private
-configuration storage, a private deployment repo, or a secret manager. ConfigMaps
+Keep actual site configuration and secrets out of SCM under BAS-001. Use private
+configuration storage or a secret manager; separate deployment repositories must
+also keep their tracked manifests free of identifying site data and secrets. ConfigMaps
 are for non-sensitive data; Kubernetes Secrets still require appropriate RBAC,
 storage encryption, and backup handling. Base64 is not encryption. Examples must
 contain synthetic identities only.
@@ -63,8 +69,8 @@ Do not introduce templating, a custom configuration controller, or generated fil
 merely because an application has one replica. Choose the simplest approach that
 keeps configuration reviewable and credentials appropriately protected.
 
-Mount file-based configuration inputs read-only where possible. Run the final long-lived process in the
-foreground, with the entrypoint using `exec`, so shutdown signals reach it. Log
+Mount file-based configuration inputs read-only where possible. Run the final
+long-lived process in the foreground, with the entrypoint using `exec`, so shutdown signals reach it. Log
 operational events without credentials or rendered secret-bearing documents.
 Document writable paths, dependencies, listener ports, and who terminates TLS.
 
@@ -118,8 +124,8 @@ Each application's `docs/deployment.md` should provide copyable commands for:
   the current instance. Validation must use the intended image and inputs, with
   temporary output where applicable and no mutations to the active instance.
 - Updating configuration and secrets as one coherent release. Prefer immutable,
-  versioned configuration objects or a private Kustomize overlay with generated
-  names; retain the previous source revision and its image reference for rollback.
+  versioned configuration objects or a Kustomize overlay with generated
+  names (kept outside SCM if it contains actual site data or secrets); retain the previous source revision and its image reference for rollback.
 - Applying the deployment and activating changes through a restart or a supported
   reload. For restart-based Compose deployments, use `up -d --force-recreate`
   (and `--wait` where supported). For Kubernetes, apply a changed pod template,
@@ -129,8 +135,8 @@ Each application's `docs/deployment.md` should provide copyable commands for:
 - Verifying readiness and a representative application operation without printing
   secrets, and checking that the requested source/image revision is active.
 - Rolling back to the previous image **and source snapshot**, activating them by
-  the chosen restart/reload mechanism, and verifying again. A Deployment rollback does not undo mutations to a shared
-  Secret or ConfigMap. A Compose restart does not undo source edits.
+  the chosen restart/reload mechanism, and verifying again. A Deployment rollback does not undo mutations to a
+  shared Secret or ConfigMap. A Compose restart does not undo source edits.
 
 Compose paths are relative to the Compose project's base directory, normally the
 first Compose file's directory. If it lives under `deploy/compose/`, make build
@@ -145,7 +151,7 @@ reload; document the actual activation mechanism. Avoid concurrent operators and
 keep each startup's input snapshot coherent. Plain manifests with Kustomize are
 a good default; use Helm when configurable distribution warrants it. Keep ingress,
 TLS certificates, namespaces, registry credentials, and site-specific policies in
-private overlays where appropriate.
+untracked/private configuration overlays where appropriate, following BAS-001.
 
 Configuration-dependent maintenance, such as downloading certificate inventories,
 should be explicit and separate from normal serving startup. Retain provenance,
@@ -154,20 +160,8 @@ not require Internet access merely to restart from existing inputs.
 
 ## Implementation choices: keep it simple
 
-Choose the language and approach per application. Let the standard library,
-package ecosystem, and existing software guide the choice; use the option that
-solves the problem clearly with the least machinery. These are preferences, not
-requirements to rewrite a working application:
-
-- **Python:** a good default for small services, automation, and glue. Keep the
-  uv and dependency-management conventions below.
-- **Node.js with TypeScript:** a preferred option for web applications. Use Biome
-  for linting/formatting and Vitest for tests, with type checking as a separate
-  check where appropriate. Commit the chosen package manager's lockfile and use
-  its locked installation mode in CI.
-- **Go:** the usual starting point for system-oriented services, infrastructure
-  tools, and similar programs. Prefer its standard tooling and libraries where
-  they fit; commit module dependency records.
+Follow BAS-001 for language selection, development tools, and CI. For container
+applications, also consider these image-specific simplifications.
 
 Before writing custom software or assembling an image, ask whether a good,
 simple, efficient Docker Official Image or vendor-maintained official image on
@@ -181,25 +175,3 @@ Under KISS, a small Dockerfile around an off-the-shelf tool, plus a few helper
 scripts if useful, is a valid complete application. Do not introduce a framework,
 custom server, or extra service just to make the project look like an application.
 Keep wrappers small and focused on configuration, lifecycle, and integration.
-
-## Development and CI
-
-Use the language's established tooling and commit its reproducibility lockfile.
-For Python, prefer uv, `pyproject.toml`, and `uv.lock`; separate development tools
-from runtime dependencies and use locked synchronization in CI. Development tools
-must not enter runtime images unless required there.
-
-Run tests and language-appropriate lint/format checks in CI. Shell scripts use
-ShellCheck. Grant workflows minimal permissions. Image build/publish steps are
-an explicit project decision; adopting this standard does not add them or grant
-permission to publish. Likewise, local changes and commits do not authorize a
-push or deployment.
-
-## Referencing this standard
-
-Application README files should name **CAS-001 version 1**, record the standards
-commit they follow, and link to this file. With sibling local checkouts, the link
-from a repo-root README is `../standards/container-applications.md`. Replace or
-supplement it with the standards repository's canonical URL once one exists.
-Do not copy this document into every application. Keep only the application's
-specific commands, settings, tradeoffs, and exceptions in its own deployment notes.
