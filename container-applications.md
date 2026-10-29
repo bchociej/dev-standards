@@ -5,6 +5,15 @@ shipped as one or more container images and deployed with Docker Compose or
 Kubernetes. Keep the implementation small; record deliberate exceptions in the
 application's deployment notes.
 
+## Platform default
+
+Target **Linux on amd64 (x86-64)** by default: container images, Docker hosts,
+Kubernetes worker nodes, and any self-managed control-plane nodes. Assume no other
+OS or architecture support unless a project explicitly needs it. Multi-architecture
+builds, emulation, and portability work are optional project decisions, not baseline
+requirements. Image builds and deployment records should consistently target
+`linux/amd64`; document deliberate exceptions.
+
 ## Repository layout
 
 For a single component:
@@ -46,40 +55,60 @@ are for non-sensitive data; Kubernetes Secrets still require appropriate RBAC,
 storage encryption, and backup handling. Base64 is not encryption. Examples must
 contain synthetic identities only.
 
-Mount configuration inputs read-only. Run the final long-lived process in the
+Use the application's native configuration interface where practical: mounted
+configuration files, environment variables, or supported configuration APIs. On
+Kubernetes, use ConfigMaps and Secrets where they earn their operational complexity;
+on Compose, bind mounts, environment files, and secrets are reasonable equivalents.
+Do not introduce templating, a custom configuration controller, or generated files
+merely because an application has one replica. Choose the simplest approach that
+keeps configuration reviewable and credentials appropriately protected.
+
+Mount file-based configuration inputs read-only where possible. Run the final long-lived process in the
 foreground, with the entrypoint using `exec`, so shutdown signals reach it. Log
 operational events without credentials or rendered secret-bearing documents.
 Document writable paths, dependencies, listener ports, and who terminates TLS.
 
-## Simple single-replica applications
+## Single-replica applications
 
-For applications that generate files from configuration, prefer this lifecycle:
+One replica is a reasonable simple deployment choice, independent of how the
+application consumes configuration. Use native ConfigMap/Secret injection or the
+application's existing configuration mechanism when it fits. Choose restart or a
+supported reload deliberately, and document how changes become active and how
+readiness confirms successful initialization.
+
+When overlapping instances are undesirable, use a Kubernetes Deployment with
+`replicas: 1`, no autoscaling, and strategy `Recreate`; do not use a rolling surge
+that briefly creates a second writer. Avoid manually deleting pods during an
+update. These settings control normal managed rollouts; they are not distributed
+fencing against every failure or external scaling action. Compose should likewise
+have one service instance. Accept and document the brief outage while it restarts.
+If overlap is harmless and availability warrants another update strategy, record
+that choice instead of imposing Recreate solely because replicas is set to one.
+
+Persist genuinely durable application data separately and document backups and
+recovery. Do not classify databases or irreplaceable state as disposable output.
+Scaling requires a separate concurrency and ownership design where state is shared.
+
+### Optional pattern: render files at startup
+
+Some applications, such as Asterisk or a provisioning file server, benefit from
+assembling native configuration from structured inputs, templates, and secrets.
+For those applications, this is a reasonable lifecycle:
 
 1. The operator selects a coherent source revision and image version.
 2. Startup validates all required inputs and renders generated files locally.
 3. The server starts only after rendering succeeds. Startup failure is nonzero;
    readiness must not report success before successful initialization.
-4. Source changes take effect through an explicit recreate/restart, not an
-   implicit filesystem watcher or an undocumented live edit.
+4. Source changes take effect through an explicit recreate/restart, unless the
+   application has a deliberately supported and verified reload workflow.
 
 Use ephemeral local output when it can be reproduced entirely from inputs:
 Compose tmpfs/container-local storage or Kubernetes emptyDir. Treat generated
 files as secret-bearing if their inputs contain secrets. The authoritative data
-is the source snapshot, not the running container or its generated files.
-Persist genuinely durable application data separately and document backups and
-recovery; do not classify databases or irreplaceable state as disposable output.
-
-Use one replica and no autoscaling by default for this pattern. On Kubernetes,
-use a Deployment with `replicas: 1` and strategy `Recreate` when overlapping
-instances are undesirable. Do not use a rolling surge that briefly creates a
-second writer. Avoid manually deleting pods during an update. These settings
-control normal managed rollouts; they are not distributed fencing against every
-failure or external scaling action. Compose should likewise have one service
-instance. Accept and document the brief outage while it restarts.
-
-Replicas and shared output require a separate design: define ownership, storage,
-publication, and concurrency before scaling. A PVC is not automatically needed
-for disposable generated configuration.
+is the source snapshot, not the running container or its generated files. A PVC
+is not automatically needed for disposable generated configuration. Rendering is
+an application-specific choice; it does not replace ConfigMaps or Secrets, which
+can still supply the renderer's inputs.
 
 ## Updating and recovering
 
@@ -87,18 +116,20 @@ Each application's `docs/deployment.md` should provide copyable commands for:
 
 - Building or selecting an image and validating configuration before stopping
   the current instance. Validation must use the intended image and inputs, with
-  temporary output and no writes to the active server's generated files.
+  temporary output where applicable and no mutations to the active instance.
 - Updating configuration and secrets as one coherent release. Prefer immutable,
   versioned configuration objects or a private Kustomize overlay with generated
   names; retain the previous source revision and its image reference for rollback.
-- Applying the deployment and explicitly recreating/restarting it. For Compose,
-  use `up -d --force-recreate` (and `--wait` where supported). For Kubernetes,
-  apply a changed pod template, or apply updated sources and use
-  `rollout restart deployment/<name>`, then `rollout status`.
+- Applying the deployment and activating changes through a restart or a supported
+  reload. For restart-based Compose deployments, use `up -d --force-recreate`
+  (and `--wait` where supported). For Kubernetes, apply a changed pod template,
+  or apply updated sources and use `rollout restart deployment/<name>`, then
+  `rollout status`. Reload-based workflows must document validation, activation,
+  and failure handling rather than assume a mounted file change is sufficient.
 - Verifying readiness and a representative application operation without printing
   secrets, and checking that the requested source/image revision is active.
-- Rolling back to the previous image **and source snapshot**, then recreating and
-  verifying again. A Deployment rollback does not undo mutations to a shared
+- Rolling back to the previous image **and source snapshot**, activating them by
+  the chosen restart/reload mechanism, and verifying again. A Deployment rollback does not undo mutations to a shared
   Secret or ConfigMap. A Compose restart does not undo source edits.
 
 Compose paths are relative to the Compose project's base directory, normally the
@@ -108,8 +139,9 @@ stable name so moving the file does not accidentally select a different stack.
 Document an explicit `docker compose -f deploy/compose/compose.yaml ...` invocation.
 
 Kubernetes source-volume updates can propagate while a pod is running, but an
-application that renders only at startup still requires a restart. Do not assume
-that applying a Secret/ConfigMap triggers one. Avoid concurrent operators and
+application that reads configuration only at startup still requires a restart.
+Do not assume that applying a Secret/ConfigMap triggers a restart or an application
+reload; document the actual activation mechanism. Avoid concurrent operators and
 keep each startup's input snapshot coherent. Plain manifests with Kustomize are
 a good default; use Helm when configurable distribution warrants it. Keep ingress,
 TLS certificates, namespaces, registry credentials, and site-specific policies in
