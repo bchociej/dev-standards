@@ -3,7 +3,8 @@
 Read this guide and the [README front matter](../README.md) at the current HEAD
 of the standards repo's `main` branch. Repository terms and requirement keywords
 follow the README conventions. The index identifies candidate standards; the
-subject repo's adoption records identify the versions already applied.
+subject repo's adoption records identify the version specs and resolutions
+already applied.
 Humans can use the steps as a checklist, agreeing on changes with the project
 owner through the subject repo's normal review process.
 
@@ -28,11 +29,15 @@ Use the current [README index](../README.md) to identify standards that fit the
 subject repo's actual scope. Read existing adoption records under
 [BAS-002](../bas-002-recording-standards-adoption.md) before proposing changes.
 
-For each selected standard, read the adopted or proposed version at its source
-ref and follow its dependency declarations. Different standards may come from
-different refs; do not substitute the latest version for an adopted one. Resolve
-each ref to a commit for the assessment. Explain specialized selections and
-resolve dependency conflicts explicitly.
+For each selected standard, identify its adopted or proposed version spec and
+exact resolution under the [versioning policy](versioning.md). Read that version
+at its source ref and follow all transitive dependency specs. Select one version
+per standard ID satisfying every applicable constraint. Different standards may
+come from different refs; do not substitute the latest matching version for a
+recorded resolution. Resolve each ref to a commit for the assessment. Explain
+specialized selections and report dependency conflicts before implementation.
+For existing integer-version records, follow
+[BAS-002's transition procedure](../bas-002-recording-standards-adoption.md#transition-from-legacy-adoption-records).
 
 ## 3. Assess the gaps
 
@@ -49,8 +54,8 @@ merely to adopt the standards.
 
 ## 4. Agree on the adoption plan
 
-Present each selected standard ID, version, source ref, and resolved commit,
-together with:
+Present each selected standard ID, version spec, exact resolved version, source
+ref, and resolved commit, together with:
 
 - The proposed changes and their scope.
 - Justified exceptions, unresolved choices, and any work to defer.

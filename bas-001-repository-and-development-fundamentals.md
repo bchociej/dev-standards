@@ -1,6 +1,6 @@
 # BAS-001: Repository and development fundamentals
 
-Version 4 — October 29, 2026. Applies to all subject repos, whether or not they
+Version 5.0.0 — October 29, 2026. Applies to all subject repos, whether or not they
 use containers. Terms and requirement keywords follow the
 [README conventions](README.md#how-to-read-this-repository) at this source ref.
 More specific standards build on this one; they do not silently override it.
@@ -84,6 +84,6 @@ themselves authorize a push, publication, or deployment.
 
 ## Adoption records
 
-Subject repos MUST also apply **BAS-002 version 2**:
+Subject repos MUST also apply **BAS-002 version ^3.0.0**:
 [Recording standards adoption](bas-002-recording-standards-adoption.md), using
 the source ref recorded for that dependency.

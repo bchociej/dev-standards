@@ -1,13 +1,15 @@
 # CAS-001: Container application repositories
 
-Version 3 — October 29, 2026. Applies to subject repos shipping one or more
+Version 4.0.0 — October 29, 2026. Applies to subject repos shipping one or more
 container images for Docker Compose or Kubernetes. Terms and requirement keywords
 follow the [README conventions](README.md#how-to-read-this-repository) at this
 source ref.
 
-Subject repos MUST also apply **BAS-001 version 3**:
+Subject repos MUST also apply **BAS-001 version ^5.0.0**:
 [Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md).
-Its requirements take precedence; its source ref is recorded separately.
+Its requirements take precedence; its resolved version and source ref are
+recorded separately. This release reviews and accepts BAS-001's personalization
+guidance; legacy CAS-001 v3 still requires legacy BAS-001 v3 exactly.
 
 ## Platform and repository layout
 

@@ -1,4 +1,4 @@
-"""Check the Markdown conventions used by this repository; no network or packages."""
+"""Check this repo's Markdown conventions, releases, and adoption resolutions."""
 
 from collections import Counter
 from datetime import date
@@ -7,6 +7,8 @@ import re
 import subprocess
 import sys
 from urllib.parse import unquote, urlsplit
+
+from standard_versions import dependency_errors, document_version, parse, satisfies
 
 ROOT = Path(__file__).resolve().parents[1]
 ERRORS = []
@@ -38,14 +40,68 @@ def git(*args):
     )
 
 
-def version_at(ref, path):
-    text = git("show", f"{ref}:{path}")
-    match = re.search(r"^Version (\d+) —", text, re.M)
-    return match.group(1) if match else None
+def check_release(path, text):
+    current = parse(document_version(text))
+    for ref in git("log", "--format=%H", "--", path.name).splitlines():
+        previous = git("show", f"{ref}:{path.name}")
+        version = document_version(previous)
+        if "." not in version:  # Pre-SemVer history has separate exact IDs.
+            continue
+        published = parse(version)
+        if current < published:
+            fail(path, f"version regressed below published {version}")
+        if current == published and text != previous:
+            fail(path, f"published {version} changed without a version bump")
+
+
+def check_adoption(readme, standards):
+    section = readme.read_text().split("## This repository's adoption\n", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    selection = {}
+    # Accept the old exact-only schema and the new spec/resolution schema.
+    for line in section.splitlines():
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if not cells or not re.fullmatch(r"[A-Z]+-\d+", cells[0]):
+            continue
+        sid = cells[0]
+        if len(cells) == 4:
+            spec, link = cells[1:3]
+            resolved = spec
+        elif len(cells) == 5:
+            spec, resolved, link = cells[1:4]
+            parse(resolved)
+            if spec.lstrip("^") != resolved and not spec.startswith("^"):
+                raise ValueError(f"{sid}: malformed exact spec")
+        else:
+            fail(readme, f"malformed adoption row: {sid}")
+            continue
+        source = re.search(
+            r"https://github.com/bchociej/dev-standards/blob/([0-9a-f]{40})/([^\s)#]+)",
+            link,
+        )
+        if not source or sid not in standards or source[2] != standards[sid]:
+            fail(readme, f"invalid adoption source: {sid}")
+            continue
+        if sid in selection:
+            fail(readme, f"duplicate adoption ID: {sid}")
+        try:
+            text = git("show", f"{source[1]}:{source[2]}")
+            actual = document_version(text)
+            if actual != resolved or not satisfies(actual, spec):
+                fail(readme, f"invalid adoption resolution: {sid}")
+            selection[sid] = (actual, prose(text))
+        except subprocess.CalledProcessError:
+            fail(readme, f"unresolvable adoption source: {sid}")
+    if not selection:
+        fail(readme, "no adoption records")
+    for error in dependency_errors(selection):
+        fail(readme, error)
+    return len(selection)
 
 
 def main():
-    files = [ROOT / name for name in git("ls-files", "--cached", "--others", "--exclude-standard").splitlines() if name.endswith(".md")]
+    names = git("ls-files", "--cached", "--others", "--exclude-standard").splitlines()
+    files = [ROOT / name for name in names if name.endswith(".md")]
     for path in files:
         text = path.read_text()
         if not text.endswith("\n") or text.endswith("\n\n"):
@@ -53,7 +109,6 @@ def main():
         for number, line in enumerate(text.splitlines(), 1):
             if line.rstrip() != line:
                 fail(path, f"line {number}: trailing whitespace")
-        # Inline Markdown links are the convention here; remote URLs are not fetched.
         for target in re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", prose(text)):
             parts = urlsplit(target)
             if parts.scheme or parts.netloc:
@@ -66,54 +121,43 @@ def main():
                     fail(path, f"missing heading: {target}")
 
     readme = ROOT / "README.md"
-    index_text = readme.read_text().split("## Standards index\n", 1)[1].split("\n## ", 1)[0]
-    rows = re.findall(r"^\| ([A-Z]+-\d+) \| (\d+) \| ([\d-]+) \| \[[^]]+\]\(([^)]+)\) \|", index_text, re.M)
-    standards = {}
+    index = readme.read_text().split("## Standards index\n", 1)[1].split("\n## ", 1)[0]
+    rows = re.findall(
+        r"^\| ([A-Z]+-\d+) \| ([^ |]+) \| ([\d-]+) \| \[[^]]+\]\(([^)]+)\) \|",
+        index, re.M,
+    )
+    standards, selection = {}, {}
     for sid, version, published, filename in rows:
+        parse(version)
         path = ROOT / filename
         if sid in standards:
             fail(readme, f"duplicate index ID: {sid}")
         standards[sid] = filename
         text = path.read_text()
+        selection[sid] = (version, prose(text))
         day = date.fromisoformat(published)
         expected = f"Version {version} — {day.strftime('%B')} {day.day}, {day.year}."
         if not text.startswith(f"# {sid}: ") or expected not in text.splitlines()[2]:
             fail(path, "title/version/date disagrees with index")
         if not re.fullmatch(re.escape(sid.lower()) + r"-[a-z0-9]+(?:-[a-z0-9]+)*\.md", filename):
             fail(path, "filename does not follow standard naming convention")
+        check_release(path, text)
     actual = {p.name for p in ROOT.glob("*-*.md") if re.match(r"[a-z]+-\d+-", p.name)}
     if actual != set(standards.values()):
         fail(readme, "index does not cover exactly the standard files")
-
-    for sid, filename in standards.items():
-        path = ROOT / filename
-        for dependency, required in re.findall(r"\*\*([A-Z]+-\d+) version (\d+)\*\*", prose(path.read_text())):
-            if dependency not in standards:
-                fail(path, f"unknown dependency: {dependency}")
-                continue
-            dep_path = standards[dependency]
-            # Dependencies may intentionally refer to older versions, not current main.
-            refs = git("log", "--format=%H", "--", dep_path).splitlines()
-            if not any(version_at(ref, dep_path) == required for ref in refs):
-                fail(path, f"dependency {dependency} version {required} not found in history")
-
-    # Verify this subject repo's pinned records, independently of the current index.
-    adopted = readme.read_text().split("## This repository's adoption\n", 1)[1].split("\n## ", 1)[0]
-    records = re.findall(r"^\| ([A-Z]+-\d+) \| (\d+) \| \[[^]]+\]\(https://github.com/bchociej/dev-standards/blob/([0-9a-f]{40})/([^)#]+)\) \|", adopted, re.M)
-    if not records:
-        fail(readme, "no pinned adoption records")
-    for sid, version, ref, filename in records:
-        try:
-            if sid not in standards or filename != standards[sid] or version_at(ref, filename) != version:
-                fail(readme, f"invalid adoption record: {sid}")
-        except subprocess.CalledProcessError:
-            fail(readme, f"unresolvable adoption source: {sid} at {ref}")
+    for error in dependency_errors(selection):
+        fail(readme, error)
+    adopted = check_adoption(readme, standards)
     if ERRORS:
         print("\n".join(ERRORS), file=sys.stderr)
         return 1
-    print(f"Checked {len(files)} Markdown files, {len(rows)} index entries, and {len(records)} adoption records.")
+    print(f"Checked {len(files)} Markdown files, {len(rows)} releases, and {adopted} resolutions.")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (ValueError, IndexError, FileNotFoundError, subprocess.CalledProcessError) as exc:
+        print(f"Invalid document metadata or Git history: {exc}", file=sys.stderr)
+        raise SystemExit(1)

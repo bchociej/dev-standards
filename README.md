@@ -36,9 +36,9 @@ of that requirement; compliance claims MUST disclose such exceptions.
 
 | Standard number | Version | Date | Name | Application note |
 | --- | --- | --- | --- | --- |
-| BAS-001 | 4 | 2026-10-29 | [Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md) | Every project: hosting, public-source privacy, language/tooling choices, and CI. |
-| BAS-002 | 2 | 2026-10-29 | [Recording standards adoption](bas-002-recording-standards-adoption.md) | Every repository adopting dev-standards: per-standard README adoption records and exceptions. |
-| CAS-001 | 3 | 2026-10-29 | [Container application repositories](cas-001-container-application-repositories.md) | Container images for Compose or Kubernetes; inherits BAS-001. |
+| BAS-001 | 5.0.0 | 2026-10-29 | [Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md) | Every project: hosting, public-source privacy, language/tooling choices, and CI. |
+| BAS-002 | 3.0.0 | 2026-10-29 | [Recording standards adoption](bas-002-recording-standards-adoption.md) | Every repository adopting dev-standards: per-standard README adoption records and exceptions. |
+| CAS-001 | 4.0.0 | 2026-10-29 | [Container application repositories](cas-001-container-application-repositories.md) | Container images for Compose or Kubernetes; inherits BAS-001. |
 
 See BAS-002 for how projects record their adoption of dev-standards.
 
@@ -47,10 +47,14 @@ See BAS-002 for how projects record their adoption of dev-standards.
 This repository is both the subject repo and the standards repo. Standards
 source: [bchociej/dev-standards](https://github.com/bchociej/dev-standards).
 
-| Standard | Version | Source ref | Status |
+| Standard | Version (legacy exact) | Source ref | Status |
 | --- | --- | --- | --- |
 | BAS-001 | 4 | [`7a58229755dadb9a0c77d72bfe976030ce82d076`](https://github.com/bchociej/dev-standards/blob/7a58229755dadb9a0c77d72bfe976030ce82d076/bas-001-repository-and-development-fundamentals.md) | Adopted with the tooling departure below |
 | BAS-002 | 2 | [`7a58229755dadb9a0c77d72bfe976030ce82d076`](https://github.com/bchociej/dev-standards/blob/7a58229755dadb9a0c77d72bfe976030ce82d076/bas-002-recording-standards-adoption.md) | Adopted |
+
+These historical integer-version records remain exact; they are not SemVer
+aliases. Migration to the new releases is deferred until their source commits
+are published; see [future work](TODO.md).
 
 See [adoption notes](docs/standards.md) for scope, the justified Python-tooling
 departure, verification, and limitations. CAS-001 does not apply.
@@ -77,9 +81,10 @@ To ask an agent to start:
 > dev-standards. First read the standards repo's README and adoption guide at the
 > current HEAD of main. Inspect the subject repo's instructions, development
 > norms, and existing per-standard adoption records. Propose applicable standard
-> versions and source refs, gaps, exceptions, changes, validation, and the Git
-> workflow. Obtain my consent before implementing the plan unless I have already
-> approved that scope. Then complete, verify, and record the agreed adoption.
+> version specs, exact resolutions, source refs, gaps, exceptions, changes,
+> validation, and the Git workflow. Obtain my consent before implementing the plan
+> unless I have already approved that scope. Then complete, verify, and record
+> the agreed adoption.
 
 ## Maintaining this index
 
@@ -91,11 +96,11 @@ Name standard files with the lowercase standard number, a dash, and the lowercas
 hyphen-separated name, followed by `.md`, for example
 `bas-001-repository-and-development-fundamentals.md`.
 
-A standard's version MUST increase when its normative requirements, scope, or
-required dependency versions change. Editorial clarifications MAY retain the
-version if they do not change obligations. The index and standard header MUST
-agree on version and date. Dependent standards MUST be reviewed when a dependency
-changes; their declared version requirements change only deliberately.
+Standards MUST follow the [semantic versioning policy](docs/versioning.md).
+Consuming subject repos SHOULD use caret specs such as `^5.0.0`, recording the
+exact resolved version and its source ref separately under BAS-002. A matching
+range does not authorize agents to upgrade or remediate without consultation.
+The policy defines compatibility, dependency review, and legacy migration.
 
 A standard ID MUST NOT be reused for a different purpose. Retired standards MUST
 remain discoverable in Git history; the index MUST identify retirement and any
