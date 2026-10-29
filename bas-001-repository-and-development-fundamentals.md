@@ -1,9 +1,20 @@
 # BAS-001: Repository and development fundamentals
 
-Version 3 — October 29, 2026. Applies to all subject repos, whether or not they
+Version 4 — October 29, 2026. Applies to all subject repos, whether or not they
 use containers. Terms and requirement keywords follow the
 [README conventions](README.md#how-to-read-this-repository) at this source ref.
 More specific standards build on this one; they do not silently override it.
+
+## Personalization assumptions
+
+This standard presumes the user is **Ben Chociej (GitHub: `bchociej`)**. This name
+and account are intentionally public identifiers authorized for inclusion here.
+That authorization does not extend to other personal or deployment information.
+
+For another user, personalizable assumptions such as the GitHub namespace and
+any assumptions about internal network topology SHOULD be scrutinized, discussed
+with that user, and forked or customized to suit them. The source-safety requirements
+below still apply.
 
 ## Hosting and visibility
 

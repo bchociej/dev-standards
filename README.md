@@ -36,7 +36,7 @@ of that requirement; compliance claims MUST disclose such exceptions.
 
 | Standard number | Version | Date | Name | Application note |
 | --- | --- | --- | --- | --- |
-| BAS-001 | 3 | 2026-10-29 | [Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md) | Every project: hosting, public-source privacy, language/tooling choices, and CI. |
+| BAS-001 | 4 | 2026-10-29 | [Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md) | Every project: hosting, public-source privacy, language/tooling choices, and CI. |
 | BAS-002 | 2 | 2026-10-29 | [Recording standards adoption](bas-002-recording-standards-adoption.md) | Every repository adopting dev-standards: per-standard README adoption records and exceptions. |
 | CAS-001 | 3 | 2026-10-29 | [Container application repositories](cas-001-container-application-repositories.md) | Container images for Compose or Kubernetes; inherits BAS-001. |
 
