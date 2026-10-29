@@ -42,6 +42,21 @@ of that requirement; compliance claims MUST disclose such exceptions.
 
 See BAS-002 for how projects record their adoption of dev-standards.
 
+## This repository's adoption
+
+This repository is both the subject repo and the standards repo. Standards
+source: [bchociej/dev-standards](https://github.com/bchociej/dev-standards).
+
+| Standard | Version | Source ref | Status |
+| --- | --- | --- | --- |
+| BAS-001 | 4 | [`7a58229755dadb9a0c77d72bfe976030ce82d076`](https://github.com/bchociej/dev-standards/blob/7a58229755dadb9a0c77d72bfe976030ce82d076/bas-001-repository-and-development-fundamentals.md) | Adopted with the tooling departure below |
+| BAS-002 | 2 | [`7a58229755dadb9a0c77d72bfe976030ce82d076`](https://github.com/bchociej/dev-standards/blob/7a58229755dadb9a0c77d72bfe976030ce82d076/bas-002-recording-standards-adoption.md) | Adopted |
+
+See [adoption notes](docs/standards.md) for scope, the justified Python-tooling
+departure, verification, and limitations. CAS-001 does not apply.
+
+Run local checks with `python3 scripts/check_docs.py` and `git diff --check`.
+
 ## Adopting these standards
 
 Agents receiving a terse instruction such as `adopt ~/code/dev-standards`
