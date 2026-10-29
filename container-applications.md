@@ -152,6 +152,36 @@ should be explicit and separate from normal serving startup. Retain provenance,
 validate the downloaded material, and promote a reviewed snapshot. Serving should
 not require Internet access merely to restart from existing inputs.
 
+## Implementation choices: keep it simple
+
+Choose the language and approach per application. Let the standard library,
+package ecosystem, and existing software guide the choice; use the option that
+solves the problem clearly with the least machinery. These are preferences, not
+requirements to rewrite a working application:
+
+- **Python:** a good default for small services, automation, and glue. Keep the
+  uv and dependency-management conventions below.
+- **Node.js with TypeScript:** a preferred option for web applications. Use Biome
+  for linting/formatting and Vitest for tests, with type checking as a separate
+  check where appropriate. Commit the chosen package manager's lockfile and use
+  its locked installation mode in CI.
+- **Go:** the usual starting point for system-oriented services, infrastructure
+  tools, and similar programs. Prefer its standard tooling and libraries where
+  they fit; commit module dependency records.
+
+Before writing custom software or assembling an image, ask whether a good,
+simple, efficient Docker Official Image or vendor-maintained official image on
+Docker Hub already does the job. Check the publisher, maintenance, Linux/amd64
+support, configuration interface, and operating footprint. Prefer using a suitable
+image directly when that is the simplest solution; pin the deployed image as
+specified above. A search result or an image name alone does not establish that
+an image is official or suitable.
+
+Under KISS, a small Dockerfile around an off-the-shelf tool, plus a few helper
+scripts if useful, is a valid complete application. Do not introduce a framework,
+custom server, or extra service just to make the project look like an application.
+Keep wrappers small and focused on configuration, lifecycle, and integration.
+
 ## Development and CI
 
 Use the language's established tooling and commit its reproducibility lockfile.
