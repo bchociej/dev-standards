@@ -1,177 +1,157 @@
 # CAS-001: Container application repositories
 
-Version 1 — October 29, 2026. This is the default convention for applications
-shipped as one or more container images and deployed with Docker Compose or
-Kubernetes. Keep the implementation small; record deliberate exceptions in the
-application's deployment notes.
+Version 3 — October 29, 2026. Applies to subject repos shipping one or more
+container images for Docker Compose or Kubernetes. Terms and requirement keywords
+follow the [README conventions](README.md#how-to-read-this-repository) at this
+source ref.
 
-This standard builds on **BAS-001 version 1**:
-[Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md) at the same standards
-revision. Its hosting, public-source privacy, language/tooling, CI, and standards
-reference rules take precedence. The requirements below are container-specific.
+Subject repos MUST also apply **BAS-001 version 3**:
+[Repository and development fundamentals](bas-001-repository-and-development-fundamentals.md).
+Its requirements take precedence; its source ref is recorded separately.
 
-## Platform default
+## Platform and repository layout
 
-Target **Linux on amd64 (x86-64)** by default: container images, Docker hosts,
-Kubernetes worker nodes, and any self-managed control-plane nodes. Assume no other
-OS or architecture support unless a project explicitly needs it. Multi-architecture
-builds, emulation, and portability work are optional project decisions, not baseline
-requirements. Image builds and deployment records should consistently target
-`linux/amd64`; document deliberate exceptions.
+Images and deployment hosts SHOULD target **Linux on amd64 (x86-64)**. Other
+platforms and multi-architecture builds MAY be supported when the project needs
+them; they are not baseline requirements.
 
-## Repository layout
-
-For a single component:
+For a single component, subject repos SHOULD use this layout, including only
+files needed for their supported build and deployment targets:
 
 ```text
 app/                         Application source (or the language's usual src/)
-tests/                       Automated tests
-container/                   Dockerfile, entrypoint, image process configuration
-deploy/compose/compose.yaml   Compose deployment
-deploy/kubernetes/           Kubernetes manifests and kustomization.yaml, when used
+tests/                       Automated tests, when applicable
+container/                   Dockerfile and image process configuration, if built
+deploy/compose/compose.yaml  Compose deployment, when supported
+deploy/kubernetes/          Kubernetes manifests and kustomization.yaml, when supported
 examples/                    Synthetic configuration and example templates
-docs/deployment.md           Application-specific operating instructions
+docs/deployment.md          Application-specific operating instructions
 .github/workflows/           CI checks
-README.md                    Purpose, quick start, standard reference
+README.md                    Purpose, quick start, adoption records
 ```
 
-Keep language dependency manifests, lockfiles, and `.dockerignore` at the repo
-root. Build from that root, for example:
-`docker build -f container/Dockerfile .`. Keep the build context restricted and
-exclude credentials, local inventories, generated output, and development state.
-Adjust Dockerfile COPY paths when moving image files.
+For a single component, dependency manifests, lockfiles, and `.dockerignore`
+SHOULD live at the repo root. An amd64 image build from that root is:
+`docker build --platform linux/amd64 -f container/Dockerfile .`.
+Subject repos using existing images directly MAY omit a Dockerfile and build
+instructions. Build contexts MUST exclude credentials and identifying site data;
+they SHOULD also exclude generated output and development state.
 
-When there are independently built components, use
-`services/<component>/{src,tests,Dockerfile}` (or the component's native language
-layout), with component-specific dependencies and lockfiles unless a shared
-workspace is intentional. Keep orchestration under the common `deploy/` tree.
-Do not split a small application merely to satisfy this layout.
+Independently built components SHOULD use
+`services/<component>/{src,tests,Dockerfile}` or the language's native layout,
+with component-specific dependencies and lockfiles unless a shared workspace is
+intentional. Orchestration SHOULD remain under the common `deploy/` tree. Small
+applications SHOULD NOT be split merely to satisfy a layout convention.
 
-## Image and deployment contract
+## Image and configuration contract
 
-Build an environment-neutral image. Supply hostnames, inventories, configuration,
-and credentials at deployment time. Promote the same image between environments
-and deployment targets. Production deployment records should identify the image
-by digest, or an immutable release tag with its resolved digest recorded.
+Images MUST be environment-neutral: actual hostnames, inventories, configuration,
+and credentials are supplied at deployment time under BAS-001's privacy rules.
+The same image SHOULD be promoted between environments and targets. Production
+deployment records MUST identify the image by digest, or by an immutable release
+tag with its resolved digest recorded.
 
-Keep actual site configuration and secrets out of SCM under BAS-001. Use private
-configuration storage or a secret manager; separate deployment repositories must
-also keep their tracked manifests free of identifying site data and secrets. ConfigMaps
-are for non-sensitive data; Kubernetes Secrets still require appropriate RBAC,
-storage encryption, and backup handling. Base64 is not encryption. Examples must
-contain synthetic identities only.
+Applications SHOULD use their native configuration interface: mounted files,
+environment variables, or supported APIs. ConfigMaps and Secrets on Kubernetes,
+and bind mounts, environment files, and secrets on Compose, are available
+mechanisms; custom controllers and templating SHOULD NOT be introduced without
+an application need. ConfigMaps MUST NOT contain sensitive data. Kubernetes
+Secrets MUST have appropriate RBAC, storage encryption, and backup handling;
+Base64 is not encryption. Actual site inputs remain outside SCM, including when
+stored in a separate deployment repository.
 
-Use the application's native configuration interface where practical: mounted
-configuration files, environment variables, or supported configuration APIs. On
-Kubernetes, use ConfigMaps and Secrets where they earn their operational complexity;
-on Compose, bind mounts, environment files, and secrets are reasonable equivalents.
-Do not introduce templating, a custom configuration controller, or generated files
-merely because an application has one replica. Choose the simplest approach that
-keeps configuration reviewable and credentials appropriately protected.
-
-Mount file-based configuration inputs read-only where possible. Run the final
-long-lived process in the foreground, with the entrypoint using `exec`, so shutdown signals reach it. Log
-operational events without credentials or rendered secret-bearing documents.
-Document writable paths, dependencies, listener ports, and who terminates TLS.
+File-based configuration inputs SHOULD be mounted read-only. The final
+long-lived process MUST run in the foreground and receive shutdown signals;
+a shell entrypoint MUST use `exec` when handing control to that process.
+Logs MUST NOT expose credentials or rendered secret-bearing documents.
+Deployment notes MUST identify writable paths, dependencies, listener ports,
+and who terminates TLS.
 
 ## Single-replica applications
 
-One replica is a reasonable simple deployment choice, independent of how the
-application consumes configuration. Use native ConfigMap/Secret injection or the
-application's existing configuration mechanism when it fits. Choose restart or a
-supported reload deliberately, and document how changes become active and how
-readiness confirms successful initialization.
+One replica MAY be used as a simple deployment choice. The deployment MUST
+specify how configuration changes become active, through restart or a supported
+reload, and how readiness confirms successful initialization.
 
-When overlapping instances are undesirable, use a Kubernetes Deployment with
-`replicas: 1`, no autoscaling, and strategy `Recreate`; do not use a rolling surge
-that briefly creates a second writer. Avoid manually deleting pods during an
-update. These settings control normal managed rollouts; they are not distributed
-fencing against every failure or external scaling action. Compose should likewise
-have one service instance. Accept and document the brief outage while it restarts.
-If overlap is harmless and availability warrants another update strategy, record
-that choice instead of imposing Recreate solely because replicas is set to one.
+When overlapping instances are undesirable, Kubernetes deployments MUST use
+`replicas: 1`, no autoscaling, and strategy `Recreate`; Compose deployments MUST
+likewise use one service instance. Normal updates SHOULD use the deployment
+mechanism rather than manually deleting pods. These settings prevent normal
+managed rollout overlap, not every failure or external scaling action; they are
+not distributed fencing. The brief restart outage MUST be documented. If overlap
+is harmless, another update strategy MAY be chosen without a Recreate exception.
 
-Persist genuinely durable application data separately and document backups and
-recovery. Do not classify databases or irreplaceable state as disposable output.
-Scaling requires a separate concurrency and ownership design where state is shared.
+Durable application data MUST be persisted separately, with backup and recovery
+instructions. Databases and irreplaceable state MUST NOT be treated as disposable
+output. Scaling shared-state applications requires a separate concurrency and
+ownership design.
 
 ### Optional pattern: render files at startup
 
-Some applications, such as Asterisk or a provisioning file server, benefit from
-assembling native configuration from structured inputs, templates, and secrets.
-For those applications, this is a reasonable lifecycle:
+Applications such as Asterisk or provisioning file servers MAY assemble native
+configuration from structured inputs, templates, and secrets at startup. If this
+pattern is used:
 
-1. The operator selects a coherent source revision and image version.
-2. Startup validates all required inputs and renders generated files locally.
-3. The server starts only after rendering succeeds. Startup failure is nonzero;
-   readiness must not report success before successful initialization.
-4. Source changes take effect through an explicit recreate/restart, unless the
-   application has a deliberately supported and verified reload workflow.
+1. The operator selects a coherent input snapshot and image version.
+2. Startup MUST validate inputs and complete rendering before starting the server.
+3. Initialization failure MUST exit nonzero; readiness MUST NOT report success
+   before initialization completes.
+4. Changes become active through the documented restart or supported reload.
 
-Use ephemeral local output when it can be reproduced entirely from inputs:
-Compose tmpfs/container-local storage or Kubernetes emptyDir. Treat generated
-files as secret-bearing if their inputs contain secrets. The authoritative data
-is the source snapshot, not the running container or its generated files. A PVC
-is not automatically needed for disposable generated configuration. Rendering is
-an application-specific choice; it does not replace ConfigMaps or Secrets, which
-can still supply the renderer's inputs.
+Reproducible generated output SHOULD use ephemeral local storage, such as Compose
+tmpfs or Kubernetes emptyDir. A PVC is not required for disposable output.
+Generated files MUST be treated as secret-bearing when their inputs contain
+secrets. The input snapshot remains authoritative. ConfigMaps and Secrets can
+supply renderer inputs; rendering does not replace those mechanisms.
 
 ## Updating and recovering
 
-Each application's `docs/deployment.md` should provide copyable commands for:
+The subject repo's `docs/deployment.md` MUST provide copyable instructions for
+its supported targets covering:
 
-- Building or selecting an image and validating configuration before stopping
-  the current instance. Validation must use the intended image and inputs, with
-  temporary output where applicable and no mutations to the active instance.
-- Updating configuration and secrets as one coherent release. Prefer immutable,
-  versioned configuration objects or a Kustomize overlay with generated
-  names (kept outside SCM if it contains actual site data or secrets); retain the previous source revision and its image reference for rollback.
-- Applying the deployment and activating changes through a restart or a supported
-  reload. For restart-based Compose deployments, use `up -d --force-recreate`
-  (and `--wait` where supported). For Kubernetes, apply a changed pod template,
-  or apply updated sources and use `rollout restart deployment/<name>`, then
-  `rollout status`. Reload-based workflows must document validation, activation,
-  and failure handling rather than assume a mounted file change is sufficient.
-- Verifying readiness and a representative application operation without printing
-  secrets, and checking that the requested source/image revision is active.
-- Rolling back to the previous image **and source snapshot**, activating them by
-  the chosen restart/reload mechanism, and verifying again. A Deployment rollback does not undo mutations to a
-  shared Secret or ConfigMap. A Compose restart does not undo source edits.
+- Selecting the image and validating the intended input snapshot before stopping
+  the active instance. Validation MUST use the intended image and inputs without
+  mutating the active instance, using temporary output where applicable.
+- Updating configuration and secrets as one coherent release. Versioned immutable
+  inputs or Kustomize-generated names SHOULD be used where practical. Previous
+  input snapshots and image references MUST be retained for rollback.
+- Activating the release through restart or supported reload. Reload instructions
+  MUST include validation, activation, and failure handling.
+- Verifying readiness, a representative application operation, and the active
+  input/image revision without exposing secrets.
+- Rolling back both the image and input snapshot, activating them, and verifying
+  again. A Deployment rollback does not undo shared Secret/ConfigMap mutations;
+  a Compose restart does not restore previous source files.
 
-Compose paths are relative to the Compose project's base directory, normally the
-first Compose file's directory. If it lives under `deploy/compose/`, make build
-contexts and mounts explicitly relative to that location. Give the project a
-stable name so moving the file does not accidentally select a different stack.
-Document an explicit `docker compose -f deploy/compose/compose.yaml ...` invocation.
+For restart-based Compose releases, instructions SHOULD use
+`up -d --force-recreate` and `--wait` where supported. Compose instructions MUST
+include an explicit invocation such as
+`docker compose -f deploy/compose/compose.yaml ...` and a stable project name.
+Paths MUST account for the Compose base directory, normally the first Compose
+file's directory; moving a file must not accidentally select another stack.
 
-Kubernetes source-volume updates can propagate while a pod is running, but an
-application that reads configuration only at startup still requires a restart.
-Do not assume that applying a Secret/ConfigMap triggers a restart or an application
-reload; document the actual activation mechanism. Avoid concurrent operators and
-keep each startup's input snapshot coherent. Plain manifests with Kustomize are
-a good default; use Helm when configurable distribution warrants it. Keep ingress,
-TLS certificates, namespaces, registry credentials, and site-specific policies in
-untracked/private configuration overlays where appropriate, following BAS-001.
+Kubernetes instructions MUST activate startup-only configuration through a pod
+template change or an explicit `rollout restart deployment/<name>`, followed by
+`rollout status`. Applying a Secret/ConfigMap alone does not establish restart or
+reload. Operators MUST keep each startup's input snapshot coherent and SHOULD
+avoid concurrent changes. Plain manifests with Kustomize SHOULD be the starting
+point; Helm MAY be used when configurable distribution warrants it. Site-specific
+ingress, TLS, namespaces, registry credentials, and policies remain outside SCM
+where required by BAS-001.
 
 Configuration-dependent maintenance, such as downloading certificate inventories,
-should be explicit and separate from normal serving startup. Retain provenance,
-validate the downloaded material, and promote a reviewed snapshot. Serving should
-not require Internet access merely to restart from existing inputs.
+SHOULD be explicit and separate from serving startup. Downloaded material MUST
+have provenance and be validated before promotion. Serving SHOULD NOT require
+Internet access merely to restart from existing inputs.
 
-## Implementation choices: keep it simple
+## Implementation choices
 
-Follow BAS-001 for language selection, development tools, and CI. For container
-applications, also consider these image-specific simplifications.
+Before assembling an image or writing custom software, maintainers SHOULD assess
+whether a Docker Official Image or a vendor-maintained image already meets the
+need. Verify publisher, maintenance, platform support, configuration interface,
+and footprint; a search result or name alone does not establish suitability.
+A suitable image SHOULD be used directly when that is the simplest solution.
 
-Before writing custom software or assembling an image, ask whether a good,
-simple, efficient Docker Official Image or vendor-maintained official image on
-Docker Hub already does the job. Check the publisher, maintenance, Linux/amd64
-support, configuration interface, and operating footprint. Prefer using a suitable
-image directly when that is the simplest solution; pin the deployed image as
-specified above. A search result or an image name alone does not establish that
-an image is official or suitable.
-
-Under KISS, a small Dockerfile around an off-the-shelf tool, plus a few helper
-scripts if useful, is a valid complete application. Do not introduce a framework,
-custom server, or extra service just to make the project look like an application.
-Keep wrappers small and focused on configuration, lifecycle, and integration.
+A small Dockerfile around an existing tool, with focused helper scripts, MAY be
+a complete application. Frameworks, custom servers, and extra services SHOULD NOT
+be introduced merely to make the project look like an application.
